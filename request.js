@@ -368,296 +368,296 @@ Request.prototype.init = function (options) {
     self.setHost = true
   }
 
-  self.jar(self._jar || options.jar)
+  self.jar(self._jar || options.jar, function () {
+    if (!self.uri.port) {
+      if (self.uri.protocol === 'http:') { self.uri.port = 80 } else if (self.uri.protocol === 'https:') { self.uri.port = 443 }
+    }
 
-  if (!self.uri.port) {
-    if (self.uri.protocol === 'http:') { self.uri.port = 80 } else if (self.uri.protocol === 'https:') { self.uri.port = 443 }
-  }
+    if (self.proxy && !self.tunnel) {
+      self.port = self.proxy.port
+      self.host = self.proxy.hostname
+    } else {
+      self.port = self.uri.port
+      self.host = self.uri.hostname
+    }
 
-  if (self.proxy && !self.tunnel) {
-    self.port = self.proxy.port
-    self.host = self.proxy.hostname
-  } else {
-    self.port = self.uri.port
-    self.host = self.uri.hostname
-  }
+    if (options.form) {
+      self.form(options.form)
+    }
 
-  if (options.form) {
-    self.form(options.form)
-  }
-
-  if (options.formData) {
-    var formData = options.formData
-    var requestForm = self.form()
-    for (var i = 0, ii = formData.length; i < ii; i++) {
-      var formParam = formData[i]
-      if (!formParam) { continue }
-      if (formParam.options) {
-        requestForm.append(formParam.key, formParam.value, formParam.options)
-      } else {
-        requestForm.append(formParam.key, formParam.value)
+    if (options.formData) {
+      var formData = options.formData
+      var requestForm = self.form()
+      for (var i = 0, ii = formData.length; i < ii; i++) {
+        var formParam = formData[i]
+        if (!formParam) { continue }
+        if (formParam.options) {
+          requestForm.append(formParam.key, formParam.value, formParam.options)
+        } else {
+          requestForm.append(formParam.key, formParam.value)
+        }
       }
     }
-  }
 
-  if (options.qs) {
-    self.qs(options.qs)
-  }
-
-  if (self.uri.path) {
-    self.path = self.uri.path
-  } else {
-    self.path = self.uri.pathname + (self.uri.search || '')
-  }
-
-  if (self.path.length === 0) {
-    self.path = '/'
-  }
-
-  // Auth must happen last in case signing is dependent on other headers
-  if (options.aws) {
-    self.aws(options.aws)
-  }
-
-  if (options.hawk) {
-    self.hawk(options.hawk)
-  }
-
-  if (options.httpSignature) {
-    self.httpSignature(options.httpSignature)
-  }
-
-  if (options.auth) {
-    if (Object.prototype.hasOwnProperty.call(options.auth, 'username')) {
-      options.auth.user = options.auth.username
-    }
-    if (Object.prototype.hasOwnProperty.call(options.auth, 'password')) {
-      options.auth.pass = options.auth.password
+    if (options.qs) {
+      self.qs(options.qs)
     }
 
-    self.auth(
-      options.auth.user,
-      options.auth.pass,
-      options.auth.sendImmediately,
-      options.auth.bearer
-    )
-  }
-
-  if (self.gzip && !self.hasHeader('accept-encoding')) {
-    self.setHeader('accept-encoding', 'gzip, deflate')
-  }
-
-  if (self.uri.auth && !self.hasHeader('authorization')) {
-    var uriAuthPieces = self.uri.auth.split(':').map(function (item) { return self._qs.unescape(item) })
-    self.auth(uriAuthPieces[0], uriAuthPieces.slice(1).join(':'), true)
-  }
-
-  if (!self.tunnel && self.proxy && self.proxy.auth && !self.hasHeader('proxy-authorization')) {
-    var proxyAuthPieces = self.proxy.auth.split(':').map(function (item) { return self._qs.unescape(item) })
-    var authHeader = 'Basic ' + toBase64(proxyAuthPieces.join(':'))
-    self.setHeader('proxy-authorization', authHeader)
-  }
-
-  if (self.proxy && !self.tunnel) {
-    self.path = (self.uri.protocol + '//' + self.uri.host + self.path)
-  }
-
-  if (options.json) {
-    self.json(options.json)
-  }
-  if (options.multipart) {
-    self.multipart(options.multipart)
-  }
-
-  // enable timings if verbose is true
-  if (options.time || options.verbose) {
-    self.timing = true
-
-    // NOTE: elapsedTime is deprecated in favor of .timings
-    self.elapsedTime = self.elapsedTime || 0
-  }
-
-  if (options.verbose) {
-    self.verbose = true
-  }
-
-  function setContentLength () {
-    if (isTypedArray(self.body)) {
-      self.body = Buffer.from(self.body)
+    if (self.uri.path) {
+      self.path = self.uri.path
+    } else {
+      self.path = self.uri.pathname + (self.uri.search || '')
     }
 
-    if (!self.hasHeader('content-length')) {
-      var length
-      if (typeof self.body === 'string') {
-        length = Buffer.byteLength(self.body)
-      } else if (Array.isArray(self.body)) {
-        length = self.body.reduce(function (a, b) { return a + b.length }, 0)
-      } else {
-        length = self.body.length
+    if (self.path.length === 0) {
+      self.path = '/'
+    }
+
+    // Auth must happen last in case signing is dependent on other headers
+    if (options.aws) {
+      self.aws(options.aws)
+    }
+
+    if (options.hawk) {
+      self.hawk(options.hawk)
+    }
+
+    if (options.httpSignature) {
+      self.httpSignature(options.httpSignature)
+    }
+
+    if (options.auth) {
+      if (Object.prototype.hasOwnProperty.call(options.auth, 'username')) {
+        options.auth.user = options.auth.username
+      }
+      if (Object.prototype.hasOwnProperty.call(options.auth, 'password')) {
+        options.auth.pass = options.auth.password
       }
 
-      if (length) {
-        self.setHeader('content-length', length)
-      } else {
-        self.emit('error', new Error('Argument error, options.body.'))
+      self.auth(
+        options.auth.user,
+        options.auth.pass,
+        options.auth.sendImmediately,
+        options.auth.bearer
+      )
+    }
+
+    if (self.gzip && !self.hasHeader('accept-encoding')) {
+      self.setHeader('accept-encoding', 'gzip, deflate')
+    }
+
+    if (self.uri.auth && !self.hasHeader('authorization')) {
+      var uriAuthPieces = self.uri.auth.split(':').map(function (item) { return self._qs.unescape(item) })
+      self.auth(uriAuthPieces[0], uriAuthPieces.slice(1).join(':'), true)
+    }
+
+    if (!self.tunnel && self.proxy && self.proxy.auth && !self.hasHeader('proxy-authorization')) {
+      var proxyAuthPieces = self.proxy.auth.split(':').map(function (item) { return self._qs.unescape(item) })
+      var authHeader = 'Basic ' + toBase64(proxyAuthPieces.join(':'))
+      self.setHeader('proxy-authorization', authHeader)
+    }
+
+    if (self.proxy && !self.tunnel) {
+      self.path = (self.uri.protocol + '//' + self.uri.host + self.path)
+    }
+
+    if (options.json) {
+      self.json(options.json)
+    }
+    if (options.multipart) {
+      self.multipart(options.multipart)
+    }
+
+    // enable timings if verbose is true
+    if (options.time || options.verbose) {
+      self.timing = true
+
+      // NOTE: elapsedTime is deprecated in favor of .timings
+      self.elapsedTime = self.elapsedTime || 0
+    }
+
+    if (options.verbose) {
+      self.verbose = true
+    }
+
+    function setContentLength () {
+      if (isTypedArray(self.body)) {
+        self.body = Buffer.from(self.body)
+      }
+
+      if (!self.hasHeader('content-length')) {
+        var length
+        if (typeof self.body === 'string') {
+          length = Buffer.byteLength(self.body)
+        } else if (Array.isArray(self.body)) {
+          length = self.body.reduce(function (a, b) { return a + b.length }, 0)
+        } else {
+          length = self.body.length
+        }
+
+        if (length) {
+          self.setHeader('content-length', length)
+        } else {
+          self.emit('error', new Error('Argument error, options.body.'))
+        }
       }
     }
-  }
 
-  if (self.body && !isstream(self.body)) {
-    setContentLength()
-  }
-
-  if (options.oauth) {
-    self.oauth(options.oauth)
-  } else if (self._oauth.params && self.hasHeader('authorization')) {
-    self.oauth(self._oauth.params)
-  }
-
-  var protocol = self.proxy && !self.tunnel ? self.proxy.protocol : self.uri.protocol
-  var defaultModules = {'http:': http, 'https:': https}
-  var httpModules = self.httpModules || {}
-
-  self.httpModule = httpModules[protocol] || defaultModules[protocol]
-
-  if (!self.httpModule) {
-    return self.emit('error', new Error('Invalid protocol: ' + protocol))
-  }
-
-  if (options.ca) {
-    self.ca = options.ca
-  }
-
-  if (!self.agent) {
-    if (options.agentOptions) {
-      self.agentOptions = options.agentOptions
+    if (self.body && !isstream(self.body)) {
+      setContentLength()
     }
 
-    if (options.agentClass) {
-      self.agentClass = options.agentClass
-    } else if (options.forever) {
-      var v = version()
-      // use ForeverAgent in node 0.10- only
-      if (v.major === 0 && v.minor <= 10) {
-        self.agentClass = protocol === 'http:' ? ForeverAgent : ForeverAgent.SSL
+    if (options.oauth) {
+      self.oauth(options.oauth)
+    } else if (self._oauth.params && self.hasHeader('authorization')) {
+      self.oauth(self._oauth.params)
+    }
+
+    var protocol = self.proxy && !self.tunnel ? self.proxy.protocol : self.uri.protocol
+    var defaultModules = {'http:': http, 'https:': https}
+    var httpModules = self.httpModules || {}
+
+    self.httpModule = httpModules[protocol] || defaultModules[protocol]
+
+    if (!self.httpModule) {
+      return self.emit('error', new Error('Invalid protocol: ' + protocol))
+    }
+
+    if (options.ca) {
+      self.ca = options.ca
+    }
+
+    if (!self.agent) {
+      if (options.agentOptions) {
+        self.agentOptions = options.agentOptions
+      }
+
+      if (options.agentClass) {
+        self.agentClass = options.agentClass
+      } else if (options.forever) {
+        var v = version()
+        // use ForeverAgent in node 0.10- only
+        if (v.major === 0 && v.minor <= 10) {
+          self.agentClass = protocol === 'http:' ? ForeverAgent : ForeverAgent.SSL
+        } else {
+          self.agentClass = self.httpModule.Agent
+          self.agentOptions = self.agentOptions || {}
+          self.agentOptions.keepAlive = true
+        }
       } else {
         self.agentClass = self.httpModule.Agent
-        self.agentOptions = self.agentOptions || {}
-        self.agentOptions.keepAlive = true
       }
+    }
+
+    if (self.pool === false) {
+      self.agent = false
     } else {
-      self.agentClass = self.httpModule.Agent
+      self.agent = self.agent || self.getNewAgent()
     }
-  }
 
-  if (self.pool === false) {
-    self.agent = false
-  } else {
-    self.agent = self.agent || self.getNewAgent()
-  }
-
-  self.on('pipe', function (src) {
-    if (self.ntick && self._started) {
-      self.emit('error', new Error('You cannot pipe to this stream after the outbound request has started.'))
-    }
-    self.src = src
-    if (isReadStream(src)) {
-      if (!self.hasHeader('content-type')) {
-        self.setHeader('content-type', mime.lookup(src.path))
+    self.on('pipe', function (src) {
+      if (self.ntick && self._started) {
+        self.emit('error', new Error('You cannot pipe to this stream after the outbound request has started.'))
       }
-    } else {
-      if (src.headers) {
-        for (var i in src.headers) {
-          if (!self.hasHeader(i)) {
-            self.setHeader(i, src.headers[i])
+      self.src = src
+      if (isReadStream(src)) {
+        if (!self.hasHeader('content-type')) {
+          self.setHeader('content-type', mime.lookup(src.path))
+        }
+      } else {
+        if (src.headers) {
+          for (var i in src.headers) {
+            if (!self.hasHeader(i)) {
+              self.setHeader(i, src.headers[i])
+            }
           }
         }
+        if (self._json && !self.hasHeader('content-type')) {
+          self.setHeader('content-type', 'application/json')
+        }
+        if (src.method && !self.explicitMethod) {
+          self.method = src.method
+        }
       }
-      if (self._json && !self.hasHeader('content-type')) {
-        self.setHeader('content-type', 'application/json')
+
+      // self.on('pipe', function () {
+      //   console.error('You have already piped to this stream. Pipeing twice is likely to break the request.')
+      // })
+    })
+
+    defer(function () {
+      if (self._aborted) {
+        return
       }
-      if (src.method && !self.explicitMethod) {
-        self.method = src.method
-      }
-    }
 
-    // self.on('pipe', function () {
-    //   console.error('You have already piped to this stream. Pipeing twice is likely to break the request.')
-    // })
-  })
-
-  defer(function () {
-    if (self._aborted) {
-      return
-    }
-
-    var end = function () {
-      if (self._form) {
-        if (!self._auth.hasAuth || (self._auth.hasAuth && self._auth.sentAuth)) {
-          try {
-            self._form.pipe(self)
-          } catch (err) {
-            self.abort()
-            options.callback && options.callback(err)
+      var end = function () {
+        if (self._form) {
+          if (!self._auth.hasAuth || (self._auth.hasAuth && self._auth.sentAuth)) {
+            try {
+              self._form.pipe(self)
+            } catch (err) {
+              self.abort()
+              options.callback && options.callback(err)
+              return
+            }
+          }
+        }
+        if (self._multipart && self._multipart.chunked) {
+          self._multipart.body.pipe(self)
+        }
+        if (self.body) {
+          if (isstream(self.body)) {
+            if (self.hasHeader('content-length')) {
+              self.body.pipe(self)
+            } else { // certain servers require content-length to function. we try to pre-detect if possible
+              streamLength(self.body, {}, function (err, len) {
+                if (!(err || self._started || self.hasHeader('content-length') || len === null || len < 0)) {
+                  self.setHeader('content-length', len)
+                }
+                self.body.pipe(self)
+              })
+            }
+          } else {
+            setContentLength()
+            if (Array.isArray(self.body)) {
+              self.body.forEach(function (part) {
+                self.write(part)
+              })
+            } else {
+              self.write(self.body)
+            }
+            self.end()
+          }
+        } else if (self.requestBodyStream) {
+          console.warn('options.requestBodyStream is deprecated, please pass the request object to stream.pipe.')
+          self.requestBodyStream.pipe(self)
+        } else if (!self.src) {
+          if (self._auth.hasAuth && !self._auth.sentAuth) {
+            self.end()
             return
           }
-        }
-      }
-      if (self._multipart && self._multipart.chunked) {
-        self._multipart.body.pipe(self)
-      }
-      if (self.body) {
-        if (isstream(self.body)) {
-          if (self.hasHeader('content-length')) {
-            self.body.pipe(self)
-          } else { // certain servers require content-length to function. we try to pre-detect if possible
-            streamLength(self.body, {}, function (err, len) {
-              if (!(err || self._started || self.hasHeader('content-length') || len === null || len < 0)) {
-                self.setHeader('content-length', len)
-              }
-              self.body.pipe(self)
-            })
-          }
-        } else {
-          setContentLength()
-          if (Array.isArray(self.body)) {
-            self.body.forEach(function (part) {
-              self.write(part)
-            })
-          } else {
-            self.write(self.body)
+          if (self.method !== 'GET' && typeof self.method !== 'undefined') {
+            self.setHeader('content-length', 0)
           }
           self.end()
         }
-      } else if (self.requestBodyStream) {
-        console.warn('options.requestBodyStream is deprecated, please pass the request object to stream.pipe.')
-        self.requestBodyStream.pipe(self)
-      } else if (!self.src) {
-        if (self._auth.hasAuth && !self._auth.sentAuth) {
-          self.end()
-          return
-        }
-        if (self.method !== 'GET' && typeof self.method !== 'undefined') {
-          self.setHeader('content-length', 0)
-        }
-        self.end()
       }
-    }
 
-    if (self._form && !self.hasHeader('content-length')) {
-      // Before ending the request, we had to compute the length of the whole form, asyncly
-      self.setHeader(self._form.getHeaders(), true)
-      self._form.getLength(function (err, length) {
-        if (!err && !isNaN(length)) {
-          self.setHeader('content-length', length)
-        }
+      if (self._form && !self.hasHeader('content-length')) {
+        // Before ending the request, we had to compute the length of the whole form, asyncly
+        self.setHeader(self._form.getHeaders(), true)
+        self._form.getLength(function (err, length) {
+          if (!err && !isNaN(length)) {
+            self.setHeader('content-length', length)
+          }
+          end()
+        })
+      } else {
         end()
-      })
-    } else {
-      end()
-    }
+      }
 
-    self.ntick = true
+      self.ntick = true
+    })
   })
 }
 
@@ -1193,30 +1193,11 @@ Request.prototype.onRequestResponse = function (response) {
   }
   self.clearTimeout()
 
-  var targetCookieJar = (self._jar && self._jar.setCookie) ? self._jar : globalCookieJar
-  var addCookie = function (cookie) {
-    // set the cookie if it's domain in the href's domain.
-    try {
-      targetCookieJar.setCookie(cookie, self.uri.href, {ignoreError: true})
-    } catch (e) {
-      self.emit('error', e)
+  function responseHandler () {
+    if (self._redirect.onResponse(response)) {
+      return
     }
-  }
 
-  response.caseless = caseless(response.headers)
-
-  if (response.caseless.has('set-cookie') && (!self._disableCookies)) {
-    var headerName = response.caseless.has('set-cookie')
-    if (Array.isArray(response.headers[headerName])) {
-      response.headers[headerName].forEach(addCookie)
-    } else {
-      addCookie(response.headers[headerName])
-    }
-  }
-
-  if (self._redirect.onResponse(response)) {
-    return // Ignore the rest of the response
-  } else {
     // Be a good stream and emit end when the response is finished.
     // Hack to emit end on close because of a core bug that never fires end
     response.on('close', function () {
@@ -1322,6 +1303,50 @@ Request.prototype.onRequestResponse = function (response) {
         self.emit('complete', response)
       })
     }
+  }
+
+  function forEachAsync (items, fn, cb) {
+    if (!(Array.isArray(items) && fn)) { return }
+    !cb && (cb = function () { /* (ಠ_ಠ) */ })
+
+    var index = 0
+    var totalItems = items.length
+    function next (err) {
+      if (err || index >= totalItems) {
+        return cb(err)
+      }
+
+      fn.call(items, items[index++], next)
+    }
+
+    if (!totalItems) {
+      return cb()
+    }
+
+    next()
+  }
+
+  var targetCookieJar = (self._jar && self._jar.setCookie) ? self._jar : globalCookieJar
+  var addCookie = function (cookie, cb) {
+    // set the cookie if it's domain in the href's domain.
+    targetCookieJar.setCookie(cookie, self.uri.href, {ignoreError: true}, cb)
+  }
+
+  response.caseless = caseless(response.headers)
+
+  if (response.caseless.has('set-cookie') && (!self._disableCookies)) {
+    var headerName = response.caseless.has('set-cookie')
+
+    forEachAsync(Array.isArray(response.headers[headerName]) ? response.headers[headerName]
+      : [response.headers[headerName]], addCookie, function (err) {
+        if (err) {
+          self.emit('error', err)
+        }
+
+        responseHandler()
+      })
+  } else {
+    responseHandler()
   }
   debug('finish init function', self.uri.href)
 }
@@ -1660,37 +1685,55 @@ Request.prototype.oauth = function (_oauth) {
   return self
 }
 
-Request.prototype.jar = function (jar) {
+Request.prototype.jar = function (jar, cb) {
   var self = this
-  var cookies
 
   if (self._redirect.redirectsFollowed === 0) {
     self.originalCookieHeader = self.getHeader('cookie')
   }
 
+  self._jar = jar
+
   if (!jar) {
     // disable cookies
-    cookies = false
     self._disableCookies = true
+    cb();
   } else {
     var targetCookieJar = jar.getCookieString ? jar : globalCookieJar
     var urihref = self.uri.href
     // fetch cookie in the Specified host
     if (targetCookieJar) {
-      cookies = targetCookieJar.getCookieString(urihref)
-    }
-  }
+      targetCookieJar.getCookieString(urihref, function (err, cookies) {
+        console.log('=> cookies: ', err, cookies);
 
-  // if need cookie and cookie is not empty
-  if (cookies && cookies.length) {
-    if (self.originalCookieHeader) {
-      // Don't overwrite existing Cookie header
-      self.setHeader('cookie', self.originalCookieHeader + '; ' + cookies)
+        // targetCookieJar.getCookies('https://postman-echo.com/cookies', console.log);
+
+        // targetCookieJar.store.store.get({domain: 'postman-echo.com', path: '/'}, function (err, cookies) {
+        //   console.log('-> ', err, cookies);
+        // });
+
+        // targetCookieJar.serialize(console.log);
+
+        if (err) {
+          return cb()
+        }
+
+        // if need cookie and cookie is not empty
+        if (cookies && cookies.length) {
+          if (self.originalCookieHeader) {
+            // Don't overwrite existing Cookie header
+            self.setHeader('cookie', self.originalCookieHeader + '; ' + cookies)
+          } else {
+            self.setHeader('cookie', cookies)
+          }
+        }
+
+        cb()
+      })
     } else {
-      self.setHeader('cookie', cookies)
+      cb()
     }
   }
-  self._jar = jar
   return self
 }
 
